@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+  <title>Voice Models — RX Board Store</title>
+  <link rel="stylesheet" href="../assets/css/style.css"/>
+</head>
+<body>
+<nav><div class="nav-inner">
+  <a href="/rx-board-store/" class="nav-logo">RX<em>Board</em> Store</a>
+  <ul class="nav-links">
+    <li><a href="/rx-board-store/"><span class="material-icons-round">home</span>Home</a></li>
+    <li><a href="/rx-board-store/plugins/"><span class="material-icons-round">extension</span>Plugins</a></li>
+    <li><a href="/rx-board-store/language-packs/"><span class="material-icons-round">language</span>Languages</a></li>
+    <li><a href="/rx-board-store/voice-models/" class="active"><span class="material-icons-round">mic</span>Voice</a></li>
+    <li><a href="/rx-board-store/about/"><span class="material-icons-round">info</span>About</a></li>
+  </ul>
+  <div class="nav-auth" id="nav-auth"></div>
+</div></nav>
+<main><div class="container">
+  <div class="page-header">
+    <h1><span class="material-icons-round">mic</span>Voice Models</h1>
+    <p>Offline voice typing models powered by the Vosk engine. No internet needed.</p>
+  </div>
+  <div class="sort-bar">
+    <label>Sort by</label>
+    <select class="sort-select" id="sort" onchange="loadItems()">
+      <option value="newest">Newest</option>
+      <option value="downloads">Most Downloaded</option>
+      <option value="rating">Top Rated</option>
+      <option value="name">Name A–Z</option>
+    </select>
+    <span class="count-badge" id="count">Loading...</span>
+  </div>
+  <div class="items-grid" id="grid"><div class="loading"><div class="spinner"></div>Loading...</div></div>
+</div></main>
+<div id="footer"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../assets/js/supabase.js"></script>
+<script>
+async function loadItems(){
+  const sort=document.getElementById('sort').value;
+  const grid=document.getElementById('grid');
+  grid.innerHTML='<div class="loading"><div class="spinner"></div>Loading...</div>';
+  let q=sb.from('items').select('*,developers(display_name)').eq('status','approved').eq('type','voice-model');
+  if(sort==='newest')q=q.order('created_at',{ascending:false});
+  else if(sort==='downloads')q=q.order('downloads',{ascending:false});
+  else if(sort==='name')q=q.order('name');
+  const {data:items}=await q;
+  const {data:ratings}=await sb.from('item_ratings').select('*');
+  const rm={};(ratings||[]).forEach(r=>rm[r.item_id]=r);
+  let sorted=items||[];
+  if(sort==='rating')sorted=sorted.sort((a,b)=>(rm[b.id]?.avg_rating||0)-(rm[a.id]?.avg_rating||0));
+  document.getElementById('count').textContent=`${sorted.length} item${sorted.length!==1?'s':''}`;
+  if(!sorted.length){grid.innerHTML='<div class="empty"><span class="material-icons-round">mic_off</span><h3>No voice models yet</h3><p>Be the first to submit one!</p></div>';return;}
+  grid.innerHTML=sorted.map(i=>renderItemCard(i,rm[i.id])).join('');
+}
+document.addEventListener('DOMContentLoaded',loadItems);
+</script>
+</body></html>

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+  <title>Sign In — RX Board Store</title>
+  <link rel="stylesheet" href="../assets/css/style.css"/>
+  <style>
+    .auth-wrap{min-height:calc(100vh - 60px);display:flex;align-items:center;justify-content:center;padding:40px 24px;}
+    .auth-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:36px;width:100%;max-width:420px;}
+    .auth-logo{text-align:center;margin-bottom:28px;}
+    .auth-logo h2{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;margin-bottom:4px;}
+    .auth-logo h2 em{color:var(--teal);font-style:normal;}
+    .auth-logo p{font-size:13px;color:var(--text-muted);}
+    .auth-tabs{display:flex;border:1.5px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:24px;}
+    .auth-tab{flex:1;padding:9px;text-align:center;font-size:13px;font-weight:600;cursor:pointer;background:none;border:none;color:var(--text-muted);font-family:'Inter',sans-serif;transition:all 0.15s;}
+    .auth-tab.active{background:var(--teal);color:#fff;}
+    .auth-footer{text-align:center;margin-top:16px;font-size:12px;color:var(--text-muted);}
+  </style>
+</head>
+<body>
+<nav><div class="nav-inner">
+  <a href="/rx-board-store/" class="nav-logo">RX<em>Board</em> Store</a>
+  <ul class="nav-links">
+    <li><a href="/rx-board-store/"><span class="material-icons-round">home</span>Home</a></li>
+    <li><a href="/rx-board-store/plugins/"><span class="material-icons-round">extension</span>Plugins</a></li>
+    <li><a href="/rx-board-store/language-packs/"><span class="material-icons-round">language</span>Languages</a></li>
+    <li><a href="/rx-board-store/voice-models/"><span class="material-icons-round">mic</span>Voice</a></li>
+  </ul>
+  <div class="nav-auth" id="nav-auth"></div>
+</div></nav>
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <h2>RX<em>Board</em> Store</h2>
+      <p>Developer Portal</p>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="showTab('signin')">Sign In</button>
+      <button class="auth-tab" onclick="showTab('signup')">Sign Up</button>
+    </div>
+    <div id="alert"></div>
+    <div id="signin-form">
+      <div class="form-group"><label><span class="material-icons-round">email</span>Email</label><input type="email" class="form-control" id="signin-email" placeholder="you@email.com"/></div>
+      <div class="form-group"><label><span class="material-icons-round">lock</span>Password</label><input type="password" class="form-control" id="signin-password" placeholder="••••••••"/></div>
+      <button class="btn btn-primary btn-full" onclick="signIn()"><span class="material-icons-round">login</span>Sign In</button>
+    </div>
+    <div id="signup-form" style="display:none">
+      <div class="form-group"><label><span class="material-icons-round">email</span>Email</label><input type="email" class="form-control" id="signup-email" placeholder="you@email.com"/></div>
+      <div class="form-group"><label><span class="material-icons-round">lock</span>Password</label><input type="password" class="form-control" id="signup-password" placeholder="Min 6 characters"/></div>
+      <div class="form-group"><label><span class="material-icons-round">alternate_email</span>Username</label><input type="text" class="form-control" id="signup-username" placeholder="unique_username"/><span class="form-hint">Unique. Shown on your items.</span></div>
+      <div class="form-group"><label><span class="material-icons-round">person</span>Display Name</label><input type="text" class="form-control" id="signup-displayname" placeholder="Your Name"/></div>
+      <button class="btn btn-primary btn-full" onclick="signUp()"><span class="material-icons-round">person_add</span>Create Account</button>
+    </div>
+    <div class="auth-footer">By signing up you agree to only submit safe, original work.</div>
+  </div>
+</div>
+<div id="footer"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../assets/js/supabase.js"></script>
+<script>
+function showTab(tab){
+  document.getElementById('signin-form').style.display = tab==='signin' ? 'block' : 'none';
+  document.getElementById('signup-form').style.display = tab==='signup' ? 'block' : 'none';
+  document.querySelectorAll('.auth-tab').forEach((t,i) => t.classList.toggle('active', (i===0 && tab==='signin') || (i===1 && tab==='signup')));
+  document.getElementById('alert').innerHTML = '';
+}
+function showAlert(msg, type='error'){
+  document.getElementById('alert').innerHTML = `<div class="alert alert-${type}"><span class="material-icons-round">${type==='error'?'error':'check_circle'}</span>${msg}</div>`;
+}
+async function signIn(){
+  const email = document.getElementById('signin-email').value.trim();
+  const password = document.getElementById('signin-password').value;
+  if(!email || !password){ showAlert('Please fill in all fields.'); return; }
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if(error){ showAlert(error.message); return; }
+  // Check if developer profile exists
+  const user = await getUser();
+  if(user){
+    const dev = await getDeveloper(user.id);
+    if(!dev){
+      showAlert('Your account exists but the developer profile is missing. Please contact support or try signing up again with a different email.');
+      await sb.auth.signOut();
+      return;
+    }
+  }
+  window.location.href = '/rx-board-store/dashboard/';
+}
+async function signUp(){
+  const email = document.getElementById('signup-email').value.trim();
+  const password = document.getElementById('signup-password').value;
+  const username = document.getElementById('signup-username').value.trim().toLowerCase().replace(/\s+/g,'').replace(/[^a-z0-9_]/g,'');
+  const displayName = document.getElementById('signup-displayname').value.trim();
+
+  if(!email || !password || !username || !displayName){ showAlert('Please fill in all fields.'); return; }
+  if(password.length < 6){ showAlert('Password must be at least 6 characters.'); return; }
+  if(username.length < 3){ showAlert('Username must be at least 3 characters.'); return; }
+
+  // Check if username already taken
+  const { data: existing } = await sb.from('developers').select('id').eq('username', username).maybeSingle();
+  if(existing){ showAlert('This username is already taken. Please choose another.'); return; }
+
+  const { data, error } = await sb.auth.signUp({ email, password });
+  if(error){
+    if(error.message.toLowerCase().includes('already registered') || error.message.toLowerCase().includes('already exists')){
+      showAlert('This email is already registered. Please Sign In instead.');
+    } else {
+      showAlert(error.message);
+    }
+    return;
+  }
+
+  if(!data.user){
+    showAlert('Account created! Please check your email to confirm, then sign in.');
+    return;
+  }
+
+  // Insert developer profile
+  const { error: devError } = await sb.from('developers').insert({
+    id: data.user.id,
+    username,
+    display_name: displayName
+  });
+
+  if(devError){
+    console.error('Profile insert failed:', devError);
+    // Try to give better feedback
+    if(devError.code === '23505'){ // unique violation
+      showAlert('Username already taken. Please try a different one.');
+    } else if(devError.message && devError.message.includes('policy')){
+      showAlert('Account created but profile setup failed due to permissions. Please contact support and mention RLS policy on developers table.');
+    } else {
+      showAlert('Account created but profile setup failed: ' + (devError.message || 'Unknown error') + '. Contact support.');
+    }
+    return;
+  }
+
+  showAlert('Account created successfully! Signing you in...', 'success');
+  setTimeout(() => window.location.href = '/rx-board-store/dashboard/', 1500);
+}
+getUser().then(user => { if(user) window.location.href = '/rx-board-store/dashboard/'; });
+</script>
+</body>
+</html>

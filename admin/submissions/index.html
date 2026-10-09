@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+  <title>Submissions — Admin — RX Board Store</title>
+  <link rel="stylesheet" href="../../assets/css/style.css"/>
+</head>
+<body>
+<nav><div class="nav-inner">
+  <a href="/rx-board-store/" class="nav-logo">RX<em>Board</em> Store</a>
+  <ul class="nav-links"><li><a href="/rx-board-store/"><span class="material-icons-round">home</span>Home</a></li></ul>
+  <div class="nav-auth" id="nav-auth"></div>
+</div></nav>
+<div class="container">
+  <div class="admin-layout">
+    <div id="admin-sidebar-slot"></div>
+    <div id="admin-content"><div class="loading"><div class="spinner"></div>Loading...</div></div>
+  </div>
+</div>
+<div id="footer"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../../assets/js/supabase.js"></script>
+<script>
+let allSubs=[];let currentFilter='pending';
+async function loadSubmissions(){
+  const user=await getUser();
+  if(!user){
+    document.body.innerHTML='<div style="min-height:60vh;display:flex;align-items:center;justify-content:center;padding:40px;text-align:center"><div><span class="material-icons-round" style="font-size:48px;color:var(--text-muted)">lock</span><h2 style="margin:16px 0 8px">Admin Access Required</h2><p style="color:var(--text-secondary);margin-bottom:20px">Please sign in with an admin account.</p><a href="/rx-board-store/auth/" class="btn btn-primary">Sign In</a></div></div>';
+    return;
+  }
+  if(!await isAdmin(user.id)){
+    document.body.innerHTML='<div style="min-height:60vh;display:flex;align-items:center;justify-content:center;padding:40px;text-align:center"><div><span class="material-icons-round" style="font-size:48px;color:var(--text-muted)">admin_panel_settings</span><h2 style="margin:16px 0 8px">Not an Admin</h2><p style="color:var(--text-secondary);margin-bottom:20px">Your account does not have admin privileges.</p><a href="/rx-board-store/" class="btn btn-outline">Back to Store</a></div></div>';
+    return;
+  }
+  const {data}=await sb.from('submissions').select('*,items(name,type,icon,icon_ext,version,extension,description),developers(display_name,username)').order('submitted_at',{ascending:false});
+  allSubs=data||[];
+  const pendingCount = allSubs.filter(s => s.status === 'pending').length;
+  const slot = document.getElementById('admin-sidebar-slot');
+  if (slot) slot.innerHTML = renderAdminSidebar('submissions', pendingCount);
+  renderSubs();
+}
+function renderSubs(){
+  const filtered=currentFilter==='all'?allSubs:allSubs.filter(s=>s.status===currentFilter);
+  document.getElementById('admin-content').innerHTML=`
+    <div class="section-card">
+      <div class="section-card-header">
+        <h2><span class="material-icons-round">pending_actions</span>Submissions</h2>
+        <span style="font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">${filtered.length} items</span>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
+        ${['pending','approved','rejected','all'].map(f=>`<button onclick="setFilter('${f}')" style="padding:6px 14px;border-radius:20px;border:1.5px solid ${currentFilter===f?'var(--teal)':'var(--border)'};background:${currentFilter===f?'var(--teal-light)':'var(--surface)'};color:${currentFilter===f?'var(--teal)':'var(--text-muted)'};font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif">${f.charAt(0).toUpperCase()+f.slice(1)}${f==='pending'?' ('+allSubs.filter(s=>s.status==='pending').length+')':''}</button>`).join('')}
+      </div>
+      ${filtered.length?filtered.map(s=>{
+        const tag=getTypeTag(s.items?.type||'plugin');
+        const sc=s.status==='approved'?'tag-approved':s.status==='rejected'?'tag-rejected':'tag-pending';
+        const si=s.status==='approved'?'check_circle':s.status==='rejected'?'cancel':'schedule';
+        const iconUrl=s.items?getItemIconUrl(s.items):null;
+        return `<div class="sub-row">
+          <div class="sub-icon">${iconUrl?`<img src="${iconUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:8px" onerror="this.parentElement.innerHTML='<span class=\\'material-icons-round\\'>${tag.icon}</span>'">`:`<span class="material-icons-round">${tag.icon}</span>`}</div>
+          <div class="sub-info">
+            <h4>${s.items?.name||'Unknown'} <span class="tag ${sc}" style="vertical-align:middle"><span class="material-icons-round">${si}</span>${s.status}</span></h4>
+            <p>by @${s.developers?.username||'?'} · ${s.items?.extension||''} · ${new Date(s.submitted_at).toLocaleDateString()}</p>
+            ${s.rejection_reason?`<p style="color:var(--red)">Reason: ${s.rejection_reason}</p>`:''}
+          </div>
+          <div class="sub-actions">
+            <a href="/rx-board-store/item/?id=${s.item_id}" target="_blank" class="btn btn-sm btn-outline"><span class="material-icons-round">visibility</span>View</a>
+            ${s.status==='pending'?`
+              <button class="btn btn-sm btn-success" onclick="reviewItem('${s.id}','${s.item_id}','approved')"><span class="material-icons-round">check</span>Approve</button>
+              <button class="btn btn-sm btn-danger" onclick="reviewItem('${s.id}','${s.item_id}','rejected')"><span class="material-icons-round">close</span>Reject</button>`:''}
+          </div>
+        </div>`;
+      }).join(''):'<div class="empty"><span class="material-icons-round">inbox</span><h3>Nothing here</h3></div>'}
+    </div>`;
+}
+function setFilter(f){currentFilter=f;renderSubs();}
+async function reviewItem(subId,itemId,decision){
+  const reason=decision==='rejected'?prompt('Rejection reason (optional):'):null;
+  await sb.from('submissions').update({status:decision,rejection_reason:reason||null,reviewed_at:new Date().toISOString()}).eq('id',subId);
+  await sb.from('items').update({status:decision,rejection_reason:reason||null}).eq('id',itemId);
+
+  if(decision==='approved'){
+    try {
+      const { data: item } = await sb.from('items').select('name, type').eq('id', itemId).single();
+      const { data: { session } } = await sb.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error('Not logged in');
+
+      const res = await fetch(EDGE_FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          type: 'approve_item',
+          itemId,
+          itemType: item?.type || 'plugin',
+          itemName: item?.name || itemId
+        })
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Move failed');
+
+      if (result.warning) {
+        alert('Item approved! ✅\n\n' + result.warning);
+      } else {
+        alert('Item approved & files moved automatically! ✅\n\nFiles moved: ' + (result.moved || []).join(', '));
+      }
+    } catch(e) {
+      console.error(e);
+      alert('Item approved in database ✅\n\nBut automatic file move failed: ' + e.message + '\n\nPlease move the files manually from queue/ to the live folder.');
+    }
+  } else {
+    alert('Item rejected.');
+  }
+  loadSubmissions();
+}
+document.addEventListener('DOMContentLoaded',loadSubmissions);
+</script>
+</body></html>

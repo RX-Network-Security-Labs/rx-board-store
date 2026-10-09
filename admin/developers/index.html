@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+  <title>Developers — Admin — RX Board Store</title>
+  <link rel="stylesheet" href="../../assets/css/style.css"/>
+</head>
+<body>
+<nav><div class="nav-inner">
+  <a href="/rx-board-store/" class="nav-logo">RX<em>Board</em> Store</a>
+  <div class="nav-auth" id="nav-auth"></div>
+</div></nav>
+<div class="container">
+  <div class="admin-layout">
+    <div id="admin-sidebar-slot"></div>
+    <div id="admin-content"><div class="loading"><div class="spinner"></div>Loading...</div></div>
+  </div>
+</div>
+<div id="footer"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../../assets/js/supabase.js"></script>
+<script>
+async function loadDevs(){
+  const user=await getUser();
+  if(!user){
+    document.body.innerHTML='<div style="min-height:60vh;display:flex;align-items:center;justify-content:center;padding:40px;text-align:center"><div><span class="material-icons-round" style="font-size:48px;color:var(--text-muted)">lock</span><h2 style="margin:16px 0 8px">Admin Access Required</h2><p style="color:var(--text-secondary);margin-bottom:20px">Please sign in with an admin account.</p><a href="/rx-board-store/auth/" class="btn btn-primary">Sign In</a></div></div>';
+    return;
+  }
+  if(!await isAdmin(user.id)){
+    document.body.innerHTML='<div style="min-height:60vh;display:flex;align-items:center;justify-content:center;padding:40px;text-align:center"><div><span class="material-icons-round" style="font-size:48px;color:var(--text-muted)">admin_panel_settings</span><h2 style="margin:16px 0 8px">Not an Admin</h2><p style="color:var(--text-secondary);margin-bottom:20px">Your account does not have admin privileges.</p><a href="/rx-board-store/" class="btn btn-outline">Back to Store</a></div></div>';
+    return;
+  }
+  const {data:devs}=await sb.from('developers').select('*').order('joined_at',{ascending:false});
+  const _slot = document.getElementById('admin-sidebar-slot');
+  if (_slot) _slot.innerHTML = renderAdminSidebar('developers', 0);
+  document.getElementById('admin-content').innerHTML=`
+    <div class="section-card">
+      <div class="section-card-header">
+        <h2><span class="material-icons-round">group</span>Developers</h2>
+        <span style="font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">${(devs||[]).length} registered</span>
+      </div>
+      ${devs?.length?devs.map(dev=>`
+        <div class="sub-row">
+          <div class="sub-icon"><span class="material-icons-round">person</span></div>
+          <div class="sub-info">
+            <h4>${dev.display_name} ${dev.is_banned?'<span class="tag tag-rejected">Banned</span>':''}</h4>
+            <p>@${dev.username} · Joined ${new Date(dev.joined_at).toLocaleDateString()}</p>
+          </div>
+          <div class="sub-actions">
+            ${dev.github_url?`<a href="${dev.github_url}" target="_blank" class="btn btn-sm btn-outline"><span class="material-icons-round">code</span>GitHub</a>`:''}
+          </div>
+        </div>`).join(''):'<div class="empty"><span class="material-icons-round">group</span><h3>No developers yet</h3></div>'}
+    </div>`;
+}
+document.addEventListener('DOMContentLoaded',loadDevs);
+</script>
+</body></html>

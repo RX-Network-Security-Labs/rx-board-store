@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+  <title>About — RX Board Store</title>
+  <link rel="stylesheet" href="../assets/css/style.css"/>
+  <style>
+    .about-layout{display:grid;grid-template-columns:1fr 280px;gap:48px;padding-bottom:80px;align-items:start;}
+    .about-section{margin-bottom:36px;}
+    .about-section h2{font-size:16px;font-weight:700;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;}
+    .about-section h2 .material-icons-round{color:var(--teal);}
+    .about-section p{font-size:14px;color:var(--text-secondary);line-height:1.7;margin-bottom:10px;}
+    .format-list{display:flex;flex-direction:column;gap:10px;}
+    .format-row{display:flex;align-items:center;gap:14px;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);}
+    .format-icon{width:40px;height:40px;border-radius:8px;background:var(--teal-light);color:var(--teal);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+    .format-icon .material-icons-round{font-size:20px;}
+    .format-row strong{display:block;font-size:14px;margin-bottom:2px;}
+    .format-row code{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--teal-dark);background:var(--teal-light);padding:1px 6px;border-radius:4px;}
+    .format-row p{font-size:12px;color:var(--text-muted);margin:4px 0 0;}
+    .sidebar{display:flex;flex-direction:column;gap:16px;}
+    .sidebar-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
+    .sidebar-card h3{font-size:13px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:14px;}
+    .link-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg);border-radius:var(--radius-sm);font-size:13px;font-weight:500;color:var(--text-primary);transition:background 0.15s;margin-bottom:8px;}
+    .link-item:last-child{margin-bottom:0;}
+    .link-item:hover{background:var(--teal-light);color:var(--teal-dark);}
+    .link-item .material-icons-round{font-size:18px;color:var(--teal);}
+    @media(max-width:768px){.about-layout{grid-template-columns:1fr;}}
+  </style>
+</head>
+<body>
+<nav><div class="nav-inner">
+  <a href="/rx-board-store/" class="nav-logo">RX<em>Board</em> Store</a>
+  <ul class="nav-links">
+    <li><a href="/rx-board-store/"><span class="material-icons-round">home</span>Home</a></li>
+    <li><a href="/rx-board-store/plugins/"><span class="material-icons-round">extension</span>Plugins</a></li>
+    <li><a href="/rx-board-store/language-packs/"><span class="material-icons-round">language</span>Languages</a></li>
+    <li><a href="/rx-board-store/voice-models/"><span class="material-icons-round">mic</span>Voice</a></li>
+    <li><a href="/rx-board-store/about/" class="active"><span class="material-icons-round">info</span>About</a></li>
+  </ul>
+  <div class="nav-auth" id="nav-auth"></div>
+</div></nav>
+<main><div class="container">
+  <div class="page-header">
+    <h1><span class="material-icons-round">info</span>About RX Board Store</h1>
+    <p>Everything you need to know about the store and how it works.</p>
+  </div>
+  <div class="about-layout">
+    <div>
+      <div class="about-section">
+        <h2><span class="material-icons-round">storefront</span>What is RX Board Store?</h2>
+        <p>RX Board Store is the official extension store for RX Board — a privacy-first, plugin-based Android keyboard developed by RX Network Security Labs (RNSL).</p>
+        <p>A single place where RX Board users can browse and download plugins, language packs, and voice models made by the RNSL team and the community.</p>
+      </div>
+      <div class="about-section">
+        <h2><span class="material-icons-round">folder</span>File Formats</h2>
+        <div class="format-list">
+          <div class="format-row"><div class="format-icon"><span class="material-icons-round">extension</span></div><div><strong>Plugin</strong><code>.rxpp</code><p>Adds new features, themes, or gestures to RX Board.</p></div></div>
+          <div class="format-row"><div class="format-icon"><span class="material-icons-round">language</span></div><div><strong>Language Pack</strong><code>.rxlp</code><p>Adds a keyboard layout for a new language or script.</p></div></div>
+          <div class="format-row"><div class="format-icon"><span class="material-icons-round">mic</span></div><div><strong>Voice Model</strong><code>.lsttm</code><p>Offline voice typing model powered by the Vosk engine.</p></div></div>
+        </div>
+      </div>
+      <div class="about-section">
+        <h2><span class="material-icons-round">settings</span>How It Works</h2>
+        <p>The store is powered by GitHub Pages and Supabase. Files are stored in the GitHub repository. Ratings, reviews, developer accounts, and submissions are managed via Supabase.</p>
+        <p>Developers sign up, submit through the website, and the RNSL team reviews every submission before it goes live. This keeps the store safe and high quality.</p>
+      </div>
+      <div class="about-section">
+        <h2><span class="material-icons-round">shield</span>Privacy</h2>
+        <p>RX Board has no internet permission by design. The store is a separate website — users manually download and install files. Nothing is sent automatically from the app.</p>
+      </div>
+      <div class="about-section">
+        <h2><span class="material-icons-round">business</span>About RNSL</h2>
+        <p>RX Network Security Labs is an independent developer organization focused on privacy-first tools for Android. RX Board is one of their flagship projects.</p>
+        <p>If you want to support the work, consider <a href="https://rx-network-security-labs.github.io/website/donate.html" target="_blank" style="color:var(--teal)">donating 🤍</a></p>
+      </div>
+    </div>
+    <div class="sidebar">
+      <div class="sidebar-card">
+        <h3>Community</h3>
+        <a href="https://github.com/RX-Network-Security-Labs" target="_blank" class="link-item"><span class="material-icons-round">code</span>GitHub</a>
+        <a href="https://discord.gg/gFtjWYQTzf" target="_blank" class="link-item"><span class="material-icons-round">forum</span>Discord</a>
+        <a href="https://t.me/rxnetworksecuritylabs" target="_blank" class="link-item"><span class="material-icons-round">send</span>Telegram</a>
+        <a href="https://rx-network-security-labs.github.io/website/" target="_blank" class="link-item"><span class="material-icons-round">language</span>RNSL Website</a>
+        <a href="https://rx-network-security-labs.github.io/website/donate.html" target="_blank" class="link-item"><span class="material-icons-round">favorite</span>Donate</a>
+      </div>
+      <div class="sidebar-card">
+        <h3>Want to Contribute?</h3>
+        <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:14px">Built a plugin, language pack, or voice model? Submit it and share with the whole community.</p>
+        <a href="/rx-board-store/submit/" class="btn btn-primary btn-full"><span class="material-icons-round">upload</span>Submit Your Work</a>
+      </div>
+    </div>
+  </div>
+</div></main>
+<div id="footer"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../assets/js/supabase.js"></script>
+</body></html>

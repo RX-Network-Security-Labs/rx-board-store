@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+  <title>Dashboard — RX Board Store</title>
+  <link rel="stylesheet" href="../assets/css/style.css"/>
+  <style>
+    .dash-layout{display:grid;grid-template-columns:240px 1fr;gap:28px;padding:40px 0 80px;align-items:start;}
+    .dash-sidebar{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+    .dash-profile{padding:20px;border-bottom:1px solid var(--border);text-align:center;}
+    .dash-avatar{width:56px;height:56px;border-radius:50%;background:var(--teal-light);color:var(--teal);display:flex;align-items:center;justify-content:center;margin:0 auto 10px;}
+    .dash-avatar .material-icons-round{font-size:28px;}
+    .dash-profile h3{font-size:15px;font-weight:700;margin-bottom:2px;}
+    .dash-profile p{font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;}
+    .dash-nav{list-style:none;padding:8px;}
+    .dash-nav li a{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;color:var(--text-secondary);transition:all 0.15s;}
+    .dash-nav li a:hover,.dash-nav li a.active{background:var(--teal-light);color:var(--teal);}
+    .dash-nav li a .material-icons-round{font-size:17px;}
+    .stat-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+    .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
+    .stat-card .stat-icon{width:38px;height:38px;border-radius:8px;background:var(--teal-light);color:var(--teal);display:flex;align-items:center;justify-content:center;margin-bottom:12px;}
+    .stat-card strong{display:block;font-size:24px;font-weight:700;font-family:'JetBrains Mono',monospace;}
+    .stat-card span{font-size:12px;color:var(--text-muted);}
+    .sub-row{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--border);}
+    .sub-row:last-child{border-bottom:none;}
+    .sub-icon{width:38px;height:38px;border-radius:8px;background:var(--teal-light);color:var(--teal);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+    .sub-icon .material-icons-round{font-size:18px;}
+    .sub-info{flex:1;}
+    .sub-info h4{font-size:14px;font-weight:600;margin-bottom:2px;}
+    .sub-info p{font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;}
+    @media(max-width:768px){.dash-layout{grid-template-columns:1fr;}.stat-cards{grid-template-columns:repeat(2,1fr);}}
+  </style>
+</head>
+<body>
+<nav><div class="nav-inner">
+  <a href="/rx-board-store/" class="nav-logo">RX<em>Board</em> Store</a>
+  <ul class="nav-links">
+    <li><a href="/rx-board-store/"><span class="material-icons-round">home</span>Home</a></li>
+    <li><a href="/rx-board-store/plugins/"><span class="material-icons-round">extension</span>Plugins</a></li>
+  </ul>
+  <div class="nav-auth" id="nav-auth"></div>
+</div></nav>
+<div class="container">
+  <div class="dash-layout">
+    <div class="dash-sidebar">
+      <div class="dash-profile" id="dash-profile">
+        <div class="dash-avatar"><span class="material-icons-round">person</span></div>
+        <h3>Loading...</h3><p>@...</p>
+      </div>
+      <ul class="dash-nav">
+        <li><a href="/rx-board-store/dashboard/" class="active"><span class="material-icons-round">dashboard</span>Overview</a></li>
+        <li><a href="/rx-board-store/submit/"><span class="material-icons-round">upload</span>Submit Work</a></li>
+        <li><a href="#" onclick="signOut()"><span class="material-icons-round">logout</span>Sign Out</a></li>
+      </ul>
+    </div>
+    <div id="dash-content"><div class="loading"><div class="spinner"></div>Loading dashboard...</div></div>
+  </div>
+</div>
+<div id="footer"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../assets/js/supabase.js"></script>
+<script>
+async function loadDashboard(){
+  const user=await getUser();
+  if(!user){window.location.href='/rx-board-store/auth/';return;}
+  const dev=await getDeveloper(user.id);
+  if(!dev){window.location.href='/rx-board-store/auth/';return;}
+  const admin=await isAdmin(user.id);
+  document.getElementById('dash-profile').innerHTML=`
+    <div class="dash-avatar"><span class="material-icons-round">person</span></div>
+    <h3>${dev.display_name}</h3><p>@${dev.username}</p>
+    ${admin?'<span class="tag tag-approved" style="margin-top:8px"><span class="material-icons-round">verified</span>Admin</span>':''}`;
+  if(admin){
+    document.querySelector('.dash-nav').insertAdjacentHTML('afterbegin',
+      '<li><a href="/rx-board-store/admin/"><span class="material-icons-round">admin_panel_settings</span>Admin Panel</a></li>');
+  }
+  const {data:submissions, error: subErr}=await sb.from('submissions').select('*,items(name,type,icon,icon_ext,version)').eq('developer_id',user.id).order('submitted_at',{ascending:false});
+  if(subErr) console.error('Submissions load error:', subErr);
+
+  const {data:myItems}=await sb.from('items').select('*').eq('developer_id',user.id).eq('status','approved');
+  const {data:pendingItems}=await sb.from('items').select('id').eq('developer_id',user.id).eq('status','pending');
+
+  const totalDownloads=(myItems||[]).reduce((s,i)=>s+(i.downloads||0),0);
+  // Prefer submissions table, fallback to pending items count
+  let pending = (submissions||[]).filter(s=>s.status==='pending').length;
+  if(pending === 0 && pendingItems?.length) pending = pendingItems.length;
+  document.getElementById('dash-content').innerHTML=`
+    <div class="stat-cards" style="margin-bottom:20px">
+      <div class="stat-card"><div class="stat-icon"><span class="material-icons-round">inventory_2</span></div><strong>${(myItems||[]).length}</strong><span>Published</span></div>
+      <div class="stat-card"><div class="stat-icon"><span class="material-icons-round">download</span></div><strong>${totalDownloads}</strong><span>Downloads</span></div>
+      <div class="stat-card"><div class="stat-icon"><span class="material-icons-round">pending</span></div><strong>${pending}</strong><span>Pending</span></div>
+    </div>
+    <div class="section-card">
+      <div class="section-card-header">
+        <h2><span class="material-icons-round">history</span>My Submissions</h2>
+        <a href="/rx-board-store/submit/" class="btn btn-sm btn-primary"><span class="material-icons-round">add</span>New</a>
+      </div>
+      ${submissions?.length?submissions.map(s=>{
+        const tag=getTypeTag(s.items?.type||'plugin');
+        const sc=s.status==='approved'?'tag-approved':s.status==='rejected'?'tag-rejected':'tag-pending';
+        const si=s.status==='approved'?'check_circle':s.status==='rejected'?'cancel':'schedule';
+        return `<div class="sub-row">
+          <div class="sub-icon"><span class="material-icons-round">${tag.icon}</span></div>
+          <div class="sub-info"><h4>${s.items?.name||'Unknown'}</h4><p>${new Date(s.submitted_at).toLocaleDateString()} · v${s.items?.version||'?'}</p></div>
+          <span class="tag ${sc}"><span class="material-icons-round">${si}</span>${s.status}</span>
+        </div>`;
+      }).join(''):'<div class="empty"><span class="material-icons-round">inbox</span><h3>No submissions yet</h3><p>Submit your first work!</p></div>'}
+    </div>
+    ${myItems?.length?`<div class="section-card" style="margin-top:20px">
+      <div class="section-card-header"><h2><span class="material-icons-round">check_circle</span>Published Items</h2></div>
+      ${myItems.map(item=>`<div class="sub-row">
+        <div class="sub-icon"><span class="material-icons-round">${getTypeTag(item.type).icon}</span></div>
+        <div class="sub-info"><h4>${item.name}</h4><p>v${item.version} · ${item.downloads} downloads</p></div>
+        <a href="/rx-board-store/item/?id=${item.id}" class="btn btn-sm btn-outline">View</a>
+      </div>`).join('')}
+    </div>`:''}`;
+}
+document.addEventListener('DOMContentLoaded',loadDashboard);
+</script>
+</body></html>

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+  <title>Loading... — RX Board Store</title>
+  <link rel="stylesheet" href="../assets/css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    .item-layout{display:grid;grid-template-columns:1fr 320px;gap:32px;align-items:start;padding-bottom:80px;}
+    .item-hero{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;margin-bottom:20px;}
+    .item-hero-header{display:flex;align-items:flex-start;gap:16px;margin-bottom:16px;}
+    .item-hero-icon{width:72px;height:72px;border-radius:14px;overflow:hidden;background:var(--teal-light);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+    .item-hero-icon img{width:100%;height:100%;object-fit:cover;}
+    .item-hero-icon .material-icons-round{font-size:34px;color:var(--teal);}
+    .item-hero-title h1{font-size:22px;font-weight:700;margin-bottom:6px;}
+    .item-hero-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    .item-hero-desc{font-size:14px;color:var(--text-secondary);line-height:1.6;margin:14px 0 20px;}
+    .readme-card,.reviews-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:20px;}
+    .card-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:7px;margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid var(--border);}
+    .card-title .material-icons-round{color:var(--teal);}
+    .review-item{padding:14px 0;border-bottom:1px solid var(--border);}
+    .review-item:last-of-type{border-bottom:none;}
+    .review-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;}
+    .review-name{font-size:13px;font-weight:700;}
+    .review-date{font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;}
+    .review-comment{font-size:13px;color:var(--text-secondary);line-height:1.5;margin-top:6px;}
+    .review-form{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:20px;margin-top:20px;}
+    .review-form h3{font-size:14px;font-weight:700;margin-bottom:14px;}
+    .star-picker{display:flex;gap:4px;margin-bottom:14px;}
+    .star-pick{cursor:pointer;font-size:26px;color:var(--border);transition:color 0.1s;background:none;border:none;padding:0;font-family:'Material Icons Round';line-height:1;}
+    .star-pick.active{color:var(--yellow);}
+    .sidebar{display:flex;flex-direction:column;gap:16px;}
+    .sidebar-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
+    .sidebar-card h3{font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:14px;}
+    .info-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;}
+    .info-row:last-child{border-bottom:none;}
+    .info-row span:first-child{color:var(--text-muted);display:flex;align-items:center;gap:5px;}
+    .info-row span:first-child .material-icons-round{font-size:15px;}
+    .info-row strong{font-weight:600;font-family:'JetBrains Mono',monospace;font-size:12px;}
+    .rating-summary{text-align:center;padding:12px 0;}
+    .rating-big{font-size:40px;font-weight:700;color:var(--text-primary);line-height:1;}
+    .rating-count{font-size:12px;color:var(--text-muted);}
+    @media(max-width:768px){.item-layout{grid-template-columns:1fr;}.sidebar{order:-1;}}
+  </style>
+</head>
+<body>
+<nav><div class="nav-inner">
+  <a href="/rx-board-store/" class="nav-logo">RX<em>Board</em> Store</a>
+  <ul class="nav-links">
+    <li><a href="/rx-board-store/"><span class="material-icons-round">home</span>Home</a></li>
+    <li><a href="/rx-board-store/plugins/"><span class="material-icons-round">extension</span>Plugins</a></li>
+    <li><a href="/rx-board-store/language-packs/"><span class="material-icons-round">language</span>Languages</a></li>
+    <li><a href="/rx-board-store/voice-models/"><span class="material-icons-round">mic</span>Voice</a></li>
+    <li><a href="/rx-board-store/about/"><span class="material-icons-round">info</span>About</a></li>
+  </ul>
+  <div class="nav-auth" id="nav-auth"></div>
+</div></nav>
+<main>
+  <div class="container" id="main-content">
+    <div class="loading" style="padding:80px"><div class="spinner"></div>Loading...</div>
+  </div>
+</main>
+<div id="footer"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../assets/js/supabase.js"></script>
+<script>
+const params=new URLSearchParams(window.location.search);
+const itemId=params.get('id');
+let selectedRating=0;
+
+async function loadItem(){
+  if(!itemId){window.location.href='/rx-board-store/';return;}
+  const {data:item}=await sb.from('items').select('*,developers(display_name,github_url)').eq('id',itemId).eq('status','approved').single();
+  if(!item){window.location.href='/rx-board-store/';return;}
+  document.title=`${item.name} — RX Board Store`;
+  const {data:ratingData}=await sb.from('item_ratings').select('*').eq('item_id',itemId).single();
+  const {data:reviews}=await sb.from('reviews').select('*').eq('item_id',itemId).order('created_at',{ascending:false});
+  const tag=getTypeTag(item.type);
+  const avg=ratingData?.avg_rating||0;
+  const total=ratingData?.total_reviews||0;
+  const backUrl=item.type==='plugin'?'/rx-board-store/plugins/':item.type==='language-pack'?'/rx-board-store/language-packs/':'/rx-board-store/voice-models/';
+  const iconUrl=getItemIconUrl(item);
+
+  let readmeHtml='';
+  const readmeUrl=getItemReadmeUrl(item);
+  try{
+    const res=await fetch(readmeUrl);
+    if(res.ok){const md=await res.text();readmeHtml=marked.parse(md);}
+  }catch(e){}
+
+  document.getElementById('main-content').innerHTML=`
+    <div style="padding:24px 0 12px">
+      <a href="${backUrl}" style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--text-muted);font-weight:500">
+        <span class="material-icons-round" style="font-size:16px">arrow_back</span>Back
+      </a>
+    </div>
+    <div class="item-layout">
+      <div>
+        <div class="item-hero">
+          <div class="item-hero-header">
+            <div class="item-hero-icon">
+              ${iconUrl?`<img src="${iconUrl}" alt="${item.name}" onerror="this.parentElement.innerHTML='<span class=\\'material-icons-round\\' style=\\'font-size:34px\\'>${tag.icon}</span>'">`:`<span class="material-icons-round">${tag.icon}</span>`}
+            </div>
+            <div class="item-hero-title">
+              <h1>${item.name}</h1>
+              <div class="item-hero-meta">
+                <span class="tag ${tag.class}"><span class="material-icons-round">${tag.icon}</span>${tag.label}</span>
+                ${avg>0?`<div style="display:flex;align-items:center;gap:3px;font-size:13px;font-weight:600;color:var(--yellow)"><span class="material-icons-round" style="font-size:15px">star</span>${avg} <span style="color:var(--text-muted);font-weight:400">(${total})</span></div>`:''}
+                <span style="font-size:13px;color:var(--text-muted);display:flex;align-items:center;gap:3px"><span class="material-icons-round" style="font-size:15px">download</span>${item.downloads} downloads</span>
+              </div>
+            </div>
+          </div>
+          <p class="item-hero-desc">${item.description}</p>
+          <a href="${item.file_url}" onclick="countDownload()" class="btn btn-primary" download>
+            <span class="material-icons-round">download</span>Download ${tag.label}
+          </a>
+        </div>
+
+        ${readmeHtml?`
+          <div class="readme-card">
+            <div class="card-title"><span class="material-icons-round">description</span>Details</div>
+            <div class="markdown-body">${readmeHtml}</div>
+          </div>`:''}
+
+        <div class="reviews-card">
+          <div class="card-title"><span class="material-icons-round">rate_review</span>Reviews</div>
+          ${reviews?.length?reviews.map(r=>`
+            <div class="review-item">
+              <div class="review-header">
+                <span class="review-name">${r.reviewer_name}</span>
+                <span class="review-date">${new Date(r.created_at).toLocaleDateString()}</span>
+              </div>
+              ${renderStars(r.rating,0)}
+              ${r.comment?`<p class="review-comment">${r.comment}</p>`:''}
+            </div>`).join(''):'<p style="font-size:13px;color:var(--text-muted)">No reviews yet. Be the first!</p>'}
+          <div class="review-form">
+            <h3>Write a Review</h3>
+            <div id="review-alert"></div>
+            <div class="star-picker" id="star-picker">
+              ${[1,2,3,4,5].map(n=>`<button class="star-pick material-icons-round" onclick="setRating(${n})">star</button>`).join('')}
+            </div>
+            <div class="form-group">
+              <label>Your Name</label>
+              <input type="text" class="form-control" id="reviewer-name" placeholder="Enter your name"/>
+            </div>
+            <div class="form-group">
+              <label>Comment <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+              <textarea class="form-control" id="review-comment" placeholder="Share your experience..."></textarea>
+            </div>
+            <button class="btn btn-primary" onclick="submitReview()">
+              <span class="material-icons-round">send</span>Submit Review
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="sidebar">
+        <div class="sidebar-card">
+          <h3>Info</h3>
+          <div class="info-row"><span><span class="material-icons-round">info</span>Version</span><strong>${item.version}</strong></div>
+          <div class="info-row"><span><span class="material-icons-round">folder</span>Size</span><strong>${item.size}</strong></div>
+          <div class="info-row"><span><span class="material-icons-round">category</span>Type</span><strong>${item.extension}</strong></div>
+          <div class="info-row"><span><span class="material-icons-round">download</span>Downloads</span><strong>${item.downloads}</strong></div>
+          <div class="info-row"><span><span class="material-icons-round">calendar_today</span>Released</span><strong>${new Date(item.created_at).toLocaleDateString()}</strong></div>
+        </div>
+        ${avg>0?`<div class="sidebar-card">
+          <h3>Rating</h3>
+          <div class="rating-summary">
+            <div class="rating-big">${avg}</div>
+            <div style="margin:6px 0 4px">${renderStars(avg,0)}</div>
+            <div class="rating-count">${total} review${total!==1?'s':''}</div>
+          </div>
+        </div>`:''}
+        <div class="sidebar-card">
+          <h3>Developer</h3>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:36px;height:36px;border-radius:50%;background:var(--teal-light);display:flex;align-items:center;justify-content:center;color:var(--teal)">
+              <span class="material-icons-round">person</span>
+            </div>
+            <div>
+              <div style="font-size:14px;font-weight:700">${item.developers?.display_name||'Unknown'}</div>
+              ${item.developers?.github_url?`<a href="${item.developers.github_url}" target="_blank" style="font-size:12px;color:var(--teal);display:flex;align-items:center;gap:3px"><span class="material-icons-round" style="font-size:13px">code</span>GitHub</a>`:''}
+            </div>
+          </div>
+        </div>
+        <a href="${item.file_url}" onclick="countDownload()" class="btn btn-primary btn-full" download>
+          <span class="material-icons-round">download</span>Download ${tag.label}
+        </a>
+      </div>
+    </div>`;
+}
+
+function setRating(n){
+  selectedRating=n;
+  document.querySelectorAll('.star-pick').forEach((s,i)=>s.classList.toggle('active',i<n));
+}
+async function countDownload(){
+  await sb.rpc('increment_downloads',{item_id:itemId});
+}
+async function submitReview(){
+  const name=document.getElementById('reviewer-name')?.value?.trim();
+  const comment=document.getElementById('review-comment')?.value?.trim();
+  const alertEl=document.getElementById('review-alert');
+  if(!selectedRating){alertEl.innerHTML='<div class="alert alert-error"><span class="material-icons-round">error</span>Please select a star rating!</div>';return;}
+  if(!name){alertEl.innerHTML='<div class="alert alert-error"><span class="material-icons-round">error</span>Please enter your name!</div>';return;}
+  
+  // Basic protection: require being signed in
+  const user = await getUser();
+  if(!user){
+    alertEl.innerHTML='<div class="alert alert-error"><span class="material-icons-round">error</span>Please <a href="/rx-board-store/auth/" style="color:inherit;text-decoration:underline">sign in</a> to leave a review.</div>';
+    return;
+  }
+
+  const {error}=await sb.from('reviews').insert({item_id:itemId,reviewer_name:name,rating:selectedRating,comment:comment||null, user_id: user.id});
+  if(error){alertEl.innerHTML='<div class="alert alert-error"><span class="material-icons-round">error</span>Something went wrong. Try again!</div>';return;}
+  alertEl.innerHTML='<div class="alert alert-success"><span class="material-icons-round">check_circle</span>Review submitted! Thank you.</div>';
+  setTimeout(()=>location.reload(),1500);
+}
+document.addEventListener('DOMContentLoaded',loadItem);
+</script>
+</body></html>

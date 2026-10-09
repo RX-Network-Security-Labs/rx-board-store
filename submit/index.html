@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>Submit — RX Board Store</title>
+  <link rel="stylesheet" href="../assets/css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    .submit-layout{display:grid;grid-template-columns:1fr 300px;gap:32px;padding-bottom:80px;align-items:start;}
+    .submit-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;margin-bottom:20px;}
+    .submit-card h2{font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--border);}
+    .submit-card h2 .material-icons-round{color:var(--teal);}
+    .login-prompt{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:48px 28px;text-align:center;}
+    .login-prompt .material-icons-round{font-size:48px;color:var(--text-muted);display:block;margin-bottom:16px;}
+    .login-prompt h2{font-size:18px;font-weight:700;margin-bottom:8px;}
+    .login-prompt p{font-size:14px;color:var(--text-secondary);margin-bottom:20px;}
+    .sidebar{display:flex;flex-direction:column;gap:16px;}
+    .sidebar-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
+    .sidebar-card h3{font-size:13px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:14px;}
+    .sidebar-card ul{list-style:none;display:flex;flex-direction:column;gap:8px;}
+    .sidebar-card li{display:flex;align-items:flex-start;gap:7px;font-size:13px;color:var(--text-secondary);line-height:1.4;}
+    .sidebar-card li .material-icons-round{font-size:15px;color:var(--teal);flex-shrink:0;margin-top:2px;}
+
+    /* ICON UPLOAD */
+    .icon-upload-wrap{display:flex;align-items:flex-start;gap:16px;margin-bottom:18px;}
+    .icon-preview-box{width:72px;height:72px;border-radius:12px;overflow:hidden;border:2px solid var(--border);background:var(--bg);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;transition:border-color 0.15s;}
+    .icon-preview-box:hover{border-color:var(--teal);}
+    .icon-preview-box img{width:100%;height:100%;object-fit:cover;}
+    .icon-preview-box .material-icons-round{font-size:32px;color:var(--text-muted);}
+    .icon-upload-info{flex:1;}
+    .icon-upload-info p{font-size:13px;color:var(--text-secondary);margin-bottom:8px;line-height:1.5;}
+    .icon-upload-info span{font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;}
+
+    /* README EDITOR */
+    .readme-editor{margin-bottom:18px;}
+    .readme-panels{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px;}
+    .readme-panel-label{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;display:flex;align-items:center;gap:4px;}
+    .readme-panel-label .material-icons-round{font-size:13px;color:var(--teal);}
+    #readme-editor-input{width:100%;min-height:180px;padding:12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:'JetBrains Mono',monospace;font-size:13px;resize:vertical;background:var(--bg);color:var(--text-primary);}
+    #readme-editor-input:focus{outline:none;border-color:var(--teal);}
+    .readme-preview-box{min-height:180px;padding:12px;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);overflow-y:auto;}
+
+    @media(max-width:768px){
+      .submit-layout{grid-template-columns:1fr;}
+      .readme-panels{grid-template-columns:1fr;}
+    }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="nav-inner">
+    <a href="/rx-board-store/" class="nav-logo">RX<em>Board</em> Store</a>
+    <ul class="nav-links">
+      <li><a href="/rx-board-store/"><span class="material-icons-round">home</span>Home</a></li>
+      <li><a href="/rx-board-store/plugins/"><span class="material-icons-round">extension</span>Plugins</a></li>
+      <li><a href="/rx-board-store/language-packs/"><span class="material-icons-round">language</span>Languages</a></li>
+      <li><a href="/rx-board-store/voice-models/"><span class="material-icons-round">mic</span>Voice</a></li>
+    </ul>
+    <div class="nav-auth" id="nav-auth"></div>
+  </div>
+</nav>
+
+<main>
+  <div class="container">
+    <div class="page-header">
+      <h1><span class="material-icons-round">upload</span>Submit Your Work</h1>
+      <p>Share your plugin, language pack, or voice model with the RX Board community.</p>
+    </div>
+    <div id="page-content">
+      <div class="loading"><div class="spinner"></div> Loading...</div>
+    </div>
+  </div>
+</main>
+
+<div id="footer"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../assets/js/supabase.js"></script>
+<script>
+let selectedFile = null;
+let selectedIcon = null;
+let readmeContent = '';
+let readmeMode = 'type'; // 'type' | 'upload' | 'link'
+
+const acceptMap = {
+  'plugin':        { ext:'.rxpp',  hint:'.rxpp only',  icon:'extension', folder:'plugins' },
+  'language-pack': { ext:'.rxlp',  hint:'.rxlp only',  icon:'language',  folder:'language-packs' },
+  'voice-model':   { ext:'.lsttm', hint:'.lsttm only', icon:'mic',       folder:'voice-models' }
+};
+
+async function initPage() {
+  const user = await getUser();
+  const content = document.getElementById('page-content');
+
+  if (!user) {
+    content.innerHTML = `
+      <div class="login-prompt">
+        <span class="material-icons-round">lock</span>
+        <h2>Sign in to Submit</h2>
+        <p>You need a developer account to submit your work.</p>
+        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+          <a href="/rx-board-store/auth/" class="btn btn-primary"><span class="material-icons-round">login</span>Sign In</a>
+          <a href="/rx-board-store/auth/" class="btn btn-outline"><span class="material-icons-round">person_add</span>Create Account</a>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const dev = await getDeveloper(user.id);
+
+  content.innerHTML = `
+    <div class="submit-layout">
+      <div>
+        <!-- MAIN FILE -->
+        <div class="submit-card">
+          <h2><span class="material-icons-round">upload_file</span>Item File</h2>
+          <div id="alert"></div>
+
+          <div class="form-group">
+            <label><span class="material-icons-round">category</span>Type</label>
+            <select class="form-control" id="item-type" onchange="updateAccept()">
+              <option value="plugin">Plugin (.rxpp)</option>
+              <option value="language-pack">Language Pack (.rxlp)</option>
+              <option value="voice-model">Voice Model (.lsttm)</option>
+            </select>
+          </div>
+
+          <div class="file-drop" id="file-drop"
+            onclick="document.getElementById('file-input').click()"
+            ondragover="event.preventDefault();this.classList.add('drag-over')"
+            ondragleave="this.classList.remove('drag-over')"
+            ondrop="handleDrop(event,'main')">
+            <span class="material-icons-round">cloud_upload</span>
+            <p>Drop your file here or click to browse</p>
+            <span id="accept-hint">.rxpp files only</span>
+          </div>
+          <input type="file" id="file-input" style="display:none" accept=".rxpp" onchange="handleFile(this.files[0],'main')"/>
+          <div id="file-info" style="display:none" class="file-selected">
+            <span class="material-icons-round">insert_drive_file</span>
+            <span id="file-name"></span>
+            <button onclick="clearFile('main')" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--teal)">
+              <span class="material-icons-round" style="font-size:16px">close</span>
+            </button>
+          </div>
+
+          <div class="form-group">
+            <label><span class="material-icons-round">title</span>Item Name</label>
+            <input type="text" class="form-control" id="item-name" placeholder="e.g. DarkKeys"/>
+          </div>
+          <div class="form-group">
+            <label><span class="material-icons-round">description</span>Description</label>
+            <textarea class="form-control" id="item-desc" placeholder="What does it do? Be clear and honest."></textarea>
+          </div>
+          <div class="form-group">
+            <label><span class="material-icons-round">tag</span>Version</label>
+            <input type="text" class="form-control" id="item-version" placeholder="1.0.0"/>
+          </div>
+        </div>
+
+        <!-- ICON -->
+        <div class="submit-card">
+          <h2><span class="material-icons-round">image</span>Item Icon <span style="font-size:12px;color:var(--text-muted);font-weight:400;margin-left:4px">(optional)</span></h2>
+          <div class="icon-upload-wrap">
+            <div class="icon-preview-box" id="icon-preview-box" onclick="document.getElementById('icon-input').click()">
+              <span class="material-icons-round">add_photo_alternate</span>
+            </div>
+            <div class="icon-upload-info">
+              <p>Upload a square icon for your item. Shown on the store card and detail page.</p>
+              <span>JPG or PNG only · Max 512 KB · Square recommended</span>
+              <div style="margin-top:8px">
+                <button class="btn btn-sm btn-outline" onclick="document.getElementById('icon-input').click()">
+                  <span class="material-icons-round">upload</span>Choose Icon
+                </button>
+                <button class="btn btn-sm" style="background:none;color:var(--text-muted);border:none;cursor:pointer" onclick="clearFile('icon')" id="icon-clear-btn" style="display:none">
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+          <input type="file" id="icon-input" style="display:none" accept=".jpg,.jpeg,.png" onchange="handleFile(this.files[0],'icon')"/>
+        </div>
+
+        <!-- README -->
+        <div class="submit-card">
+          <h2><span class="material-icons-round">description</span>README / Details <span style="font-size:12px;color:var(--text-muted);font-weight:400;margin-left:4px">(optional)</span></h2>
+          <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px">Help users understand your item. Supports Markdown — you can add images, GIFs, tables and more!</p>
+
+          <div class="readme-tabs">
+            <button class="readme-tab active" onclick="setReadmeMode('type')"><span class="material-icons-round" style="font-size:14px">edit</span> Type</button>
+            <button class="readme-tab" onclick="setReadmeMode('upload')"><span class="material-icons-round" style="font-size:14px">upload_file</span> Upload .md</button>
+            <button class="readme-tab" onclick="setReadmeMode('link')"><span class="material-icons-round" style="font-size:14px">link</span> URL</button>
+          </div>
+
+          <!-- TYPE MODE -->
+          <div id="readme-type-mode">
+            <div class="readme-panels">
+              <div>
+                <div class="readme-panel-label"><span class="material-icons-round">edit</span>Editor</div>
+                <textarea id="readme-editor-input" placeholder="# My Plugin&#10;&#10;Write your README here in Markdown...&#10;&#10;## Features&#10;- Feature 1&#10;- Feature 2" oninput="updatePreview()"></textarea>
+              </div>
+              <div>
+                <div class="readme-panel-label"><span class="material-icons-round">visibility</span>Preview</div>
+                <div class="readme-preview-box markdown-body" id="readme-preview-box">
+                  <span style="color:var(--text-muted);font-size:13px">Preview will appear here...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- UPLOAD MODE -->
+          <div id="readme-upload-mode" style="display:none">
+            <div class="file-drop" id="readme-drop"
+              onclick="document.getElementById('readme-input').click()"
+              ondragover="event.preventDefault();this.classList.add('drag-over')"
+              ondragleave="this.classList.remove('drag-over')"
+              ondrop="handleDrop(event,'readme')">
+              <span class="material-icons-round">upload_file</span>
+              <p>Drop your README.md here or click to browse</p>
+              <span>.md files only</span>
+            </div>
+            <input type="file" id="readme-input" style="display:none" accept=".md" onchange="handleFile(this.files[0],'readme')"/>
+            <div id="readme-file-info" style="display:none" class="file-selected">
+              <span class="material-icons-round">description</span>
+              <span id="readme-file-name"></span>
+              <button onclick="clearFile('readme')" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--teal)">
+                <span class="material-icons-round" style="font-size:16px">close</span>
+              </button>
+            </div>
+            <div id="readme-upload-preview" style="display:none;margin-top:12px">
+              <div class="readme-panel-label"><span class="material-icons-round">visibility</span>Preview</div>
+              <div class="readme-preview-box markdown-body" id="readme-upload-preview-box"></div>
+            </div>
+          </div>
+
+          <!-- LINK MODE -->
+          <div id="readme-link-mode" style="display:none">
+            <div class="form-group" style="margin-bottom:0">
+              <label><span class="material-icons-round">link</span>Raw README URL</label>
+              <input type="url" class="form-control" id="readme-url" placeholder="https://raw.githubusercontent.com/..." oninput="updateLinkPreview()"/>
+              <span class="form-hint">Must be a raw file URL (raw.githubusercontent.com etc)</span>
+            </div>
+            <div id="readme-link-preview" style="display:none;margin-top:12px">
+              <div class="readme-panel-label"><span class="material-icons-round">visibility</span>Preview</div>
+              <div class="readme-preview-box markdown-body" id="readme-link-preview-box"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AGREE & SUBMIT -->
+        <div class="submit-card">
+          <h2><span class="material-icons-round">send</span>Submit</h2>
+          <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:18px">
+            <input type="checkbox" id="agree" style="margin-top:3px"/>
+            <label for="agree" style="font-size:13px;color:var(--text-secondary);cursor:pointer;line-height:1.5">
+              I confirm this file is safe, original, works correctly on RX Board, and I am the creator.
+            </label>
+          </div>
+          <button class="btn btn-primary btn-full" id="submit-btn" onclick="submitWork()">
+            <span class="material-icons-round">send</span>Submit for Review
+          </button>
+        </div>
+      </div>
+
+      <!-- SIDEBAR -->
+      <div class="sidebar">
+        <div class="sidebar-card">
+          <h3>What Happens Next</h3>
+          <ul>
+            <li><span class="material-icons-round">cloud_upload</span>Files go to review queue on GitHub</li>
+            <li><span class="material-icons-round">notifications</span>RNSL notified instantly on Telegram</li>
+            <li><span class="material-icons-round">rate_review</span>Review takes 1–3 days</li>
+            <li><span class="material-icons-round">check_circle</span>Approved items go live on the store</li>
+          </ul>
+        </div>
+        <div class="sidebar-card">
+          <h3>File Rules</h3>
+          <ul>
+            <li><span class="material-icons-round">check</span>Correct extension required</li>
+            <li><span class="material-icons-round">check</span>No malicious code</li>
+            <li><span class="material-icons-round">check</span>Must work on RX Board</li>
+            <li><span class="material-icons-round">check</span>You must be the creator</li>
+            <li><span class="material-icons-round">check</span>Icon: JPG/PNG, max 512 KB</li>
+          </ul>
+        </div>
+        <div class="sidebar-card">
+          <h3>Signed in as</h3>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:32px;height:32px;border-radius:50%;background:var(--teal-light);display:flex;align-items:center;justify-content:center;color:var(--teal)">
+              <span class="material-icons-round" style="font-size:16px">person</span>
+            </div>
+            <div>
+              <div style="font-size:13px;font-weight:700">${dev?.display_name||'Developer'}</div>
+              <div style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">@${dev?.username||''}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── README MODES ──────────────────────────────────────
+function setReadmeMode(mode) {
+  readmeMode = mode;
+  ['type','upload','link'].forEach(m => {
+    document.getElementById(`readme-${m}-mode`).style.display = m === mode ? 'block' : 'none';
+  });
+  document.querySelectorAll('.readme-tab').forEach((t,i) => {
+    t.classList.toggle('active', ['type','upload','link'][i] === mode);
+  });
+}
+
+function updatePreview() {
+  const val = document.getElementById('readme-editor-input')?.value || '';
+  readmeContent = val;
+  const preview = document.getElementById('readme-preview-box');
+  if (preview) preview.innerHTML = val ? marked.parse(val) : '<span style="color:var(--text-muted);font-size:13px">Preview will appear here...</span>';
+}
+
+let linkPreviewTimer;
+function updateLinkPreview() {
+  clearTimeout(linkPreviewTimer);
+  linkPreviewTimer = setTimeout(async () => {
+    const url = document.getElementById('readme-url')?.value?.trim();
+    if (!url) return;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return;
+      const md = await res.text();
+      readmeContent = md;
+      const box = document.getElementById('readme-link-preview-box');
+      const wrap = document.getElementById('readme-link-preview');
+      if (box) box.innerHTML = marked.parse(md);
+      if (wrap) wrap.style.display = 'block';
+    } catch(e) {}
+  }, 800);
+}
+
+// ── FILE HANDLERS ─────────────────────────────────────
+function updateAccept() {
+  const type = document.getElementById('item-type')?.value;
+  const info = acceptMap[type];
+  if (!info) return;
+  document.getElementById('file-input').accept = info.ext;
+  document.getElementById('accept-hint').textContent = info.hint;
+  clearFile('main');
+}
+
+function handleDrop(e, type) {
+  e.preventDefault();
+  const dropEl = type === 'main' ? document.getElementById('file-drop') : document.getElementById('readme-drop');
+  if (dropEl) dropEl.classList.remove('drag-over');
+  handleFile(e.dataTransfer.files[0], type);
+}
+
+async function handleFile(file, type) {
+  if (!file) return;
+
+  if (type === 'main') {
+    const itemType = document.getElementById('item-type').value;
+    const ext = acceptMap[itemType].ext;
+    if (!file.name.endsWith(ext)) { showAlert(`Wrong file type! Expected ${ext}`); return; }
+    selectedFile = file;
+    const size = file.size < 1024*1024 ? `${(file.size/1024).toFixed(1)} KB` : `${(file.size/1024/1024).toFixed(1)} MB`;
+    document.getElementById('file-name').textContent = `${file.name} (${size})`;
+    document.getElementById('file-info').style.display = 'flex';
+    document.getElementById('file-drop').style.display = 'none';
+  }
+
+  else if (type === 'icon') {
+    if (!file.name.match(/\.(jpg|jpeg|png)$/i)) { showAlert('Icon must be JPG or PNG!'); return; }
+    if (file.size > 512 * 1024) { showAlert('Icon must be under 512 KB!'); return; }
+    selectedIcon = file;
+    const url = URL.createObjectURL(file);
+    document.getElementById('icon-preview-box').innerHTML = `<img src="${url}" alt="icon"/>`;
+  }
+
+  else if (type === 'readme') {
+    if (!file.name.endsWith('.md')) { showAlert('README must be a .md file!'); return; }
+    const text = await readAsText(file);
+    readmeContent = text;
+    document.getElementById('readme-file-name').textContent = file.name;
+    document.getElementById('readme-file-info').style.display = 'flex';
+    document.getElementById('readme-drop').style.display = 'none';
+    const box = document.getElementById('readme-upload-preview-box');
+    const wrap = document.getElementById('readme-upload-preview');
+    if (box) box.innerHTML = marked.parse(text);
+    if (wrap) wrap.style.display = 'block';
+  }
+}
+
+function clearFile(type) {
+  if (type === 'main') {
+    selectedFile = null;
+    document.getElementById('file-info').style.display = 'none';
+    document.getElementById('file-drop').style.display = 'block';
+    document.getElementById('file-input').value = '';
+  } else if (type === 'icon') {
+    selectedIcon = null;
+    document.getElementById('icon-preview-box').innerHTML = '<span class="material-icons-round">add_photo_alternate</span>';
+    document.getElementById('icon-input').value = '';
+  } else if (type === 'readme') {
+    readmeContent = '';
+    document.getElementById('readme-file-info').style.display = 'none';
+    document.getElementById('readme-drop').style.display = 'block';
+    document.getElementById('readme-upload-preview').style.display = 'none';
+    document.getElementById('readme-input').value = '';
+  }
+}
+
+function showAlert(msg, type='error') {
+  const icon = type==='error'?'error':type==='success'?'check_circle':'info';
+  const el = document.getElementById('alert');
+  if (el) el.innerHTML = `<div class="alert alert-${type}"><span class="material-icons-round">${icon}</span>${msg}</div>`;
+}
+
+// ── SUBMIT ────────────────────────────────────────────
+async function submitWork() {
+  const user = await getUser();
+  if (!user) return;
+  const dev = await getDeveloper(user.id);
+
+  const type = document.getElementById('item-type').value;
+  const name = document.getElementById('item-name').value.trim();
+  const desc = document.getElementById('item-desc').value.trim();
+  const version = document.getElementById('item-version').value.trim();
+  const agreed = document.getElementById('agree').checked;
+
+  // Get readme content based on mode
+  let finalReadme = '';
+  if (readmeMode === 'type') finalReadme = document.getElementById('readme-editor-input')?.value?.trim() || '';
+  else if (readmeMode === 'upload') finalReadme = readmeContent;
+  else if (readmeMode === 'link') finalReadme = readmeContent;
+  const readmeUrl = readmeMode === 'link' ? document.getElementById('readme-url')?.value?.trim() : null;
+
+  if (!selectedFile) { showAlert('Please select your item file.'); return; }
+  if (!name) { showAlert('Please enter the item name.'); return; }
+  if (!desc) { showAlert('Please enter a description.'); return; }
+  if (!version) { showAlert('Please enter a version number.'); return; }
+  if (!agreed) { showAlert('Please confirm the submission agreement.'); return; }
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Uploading...';
+
+  try {
+    const info = acceptMap[type];
+    const baseId = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'item';
+    const shortType = type === 'language-pack' ? 'lang' : (type === 'voice-model' ? 'voice' : 'plugin');
+    const itemId = baseId + '-' + shortType + '-' + Date.now().toString(36).slice(-4);
+    const fileSize = selectedFile.size < 1024*1024
+      ? `${(selectedFile.size/1024).toFixed(0)} KB`
+      : `${(selectedFile.size/1024/1024).toFixed(1)} MB`;
+
+    const fileContent = await toBase64(selectedFile);
+    const iconExt = selectedIcon ? selectedIcon.name.split('.').pop().toLowerCase().replace('jpeg','jpg') : null;
+    const iconContent = selectedIcon ? await toBase64(selectedIcon) : null;
+    const readmeContent64 = (finalReadme && readmeMode !== 'link') ? btoa(unescape(encodeURIComponent(finalReadme))) : null;
+
+    // Call Edge Function
+    const { data: { session } } = await sb.auth.getSession();
+    const token = session?.access_token;
+    if (!token) throw new Error('Not logged in');
+
+    const res = await fetch(EDGE_FUNCTION_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        fileName: `${itemId}${info.ext}`,
+        fileContent,
+        filePath: `queue/${info.folder}/${itemId}/${itemId}${info.ext}`,
+        iconContent,
+        iconExt,
+        iconPath: iconContent ? `queue/${info.folder}/${itemId}/icon.${iconExt}` : null,
+        readmeContent: readmeContent64,
+        readmePath: readmeContent64 ? `queue/${info.folder}/${itemId}/README.md` : null,
+        itemName: name,
+        itemType: type,
+        developerName: dev?.display_name || 'Unknown',
+        version,
+        description: desc
+      })
+    });
+
+    const result = await res.json();
+    if (!res.ok || result.error) throw new Error(result.error || 'Upload failed');
+
+    // Save to Supabase
+    const { error: itemErr } = await sb.from('items').insert({
+      id: itemId,
+      name, type,
+      extension: info.ext,
+      version,
+      size: fileSize,
+      developer_id: user.id,
+      description: desc,
+      file_url: `https://github.com/RX-Network-Security-Labs/rx-board-store/raw/main/${info.folder}/${itemId}/${itemId}${info.ext}`,
+      readme_url: readmeUrl || null,
+      icon_ext: iconExt || null,
+      status: 'pending'
+    });
+
+    if (itemErr) throw new Error(itemErr.message);
+
+    const { error: subErr } = await sb.from('submissions').insert({
+      developer_id: user.id,
+      item_id: itemId,
+      queue_file_path: `queue/${info.folder}/${itemId}/`,
+      status: 'pending'
+    });
+    if (subErr) {
+      console.error('Submission record failed:', subErr);
+      // Item was created, so still consider it a success but warn
+      showAlert('Item uploaded but tracking record failed. It may still appear in admin.', 'info');
+    }
+
+    showAlert('Submitted successfully! You will hear back in 1–3 days. 🎉', 'success');
+    btn.innerHTML = '<span class="material-icons-round">check_circle</span>Submitted!';
+    setTimeout(() => window.location.href = '/rx-board-store/dashboard/', 2500);
+
+  } catch(err) {
+    console.error(err);
+    showAlert(`Something went wrong: ${err.message}`);
+    btn.disabled = false;
+    btn.innerHTML = '<span class="material-icons-round">send</span>Submit for Review';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', initPage);
+</script>
+</body>
+</html>
